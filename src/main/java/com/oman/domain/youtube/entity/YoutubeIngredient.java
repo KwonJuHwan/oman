@@ -15,7 +15,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import tools.jackson.databind.annotation.EnumNaming;
+
 
 @Getter
 @Entity
