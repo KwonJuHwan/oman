@@ -5,12 +5,12 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.youtube.YouTube;
-import com.google.api.services.youtube.model.Comment;
-import com.google.api.services.youtube.model.CommentThreadListResponse;
 import com.google.api.services.youtube.model.SearchListResponse;
 import com.google.api.services.youtube.model.SearchResult;
 import com.google.api.services.youtube.model.Video;
 import com.google.api.services.youtube.model.VideoListResponse;
+import com.google.api.services.youtube.model.Channel;
+import com.google.api.services.youtube.model.ChannelListResponse;
 import com.oman.global.error.exception.YoutubeApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import com.oman.domain.youtube.exception.*;
 
@@ -30,7 +29,7 @@ public class YoutubeApiService {
     @Value("${youtube.api.key}")
     private String apiKey;
 
-    private static final long NUMBER_OF_VIDEOS_RETURNED = 10;
+    private static final long NUMBER_OF_VIDEOS_RETURNED = 20;
     private static final String VIDEO_DURATION_FILTER = "medium";
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 
@@ -44,6 +43,7 @@ public class YoutubeApiService {
 
     public List<SearchResult> searchVideos(String query) {
         try {
+
             YouTube.Search.List search = youtube.search().list(Collections.singletonList("id,snippet"));
 
             search.setKey(apiKey);
@@ -67,43 +67,12 @@ public class YoutubeApiService {
         }
     }
 
-    public Optional<Comment> getTopCommentForVideo(String videoId) {
-        try {
-            YouTube.CommentThreads.List commentThreads = youtube.commentThreads().list(Collections.singletonList("snippet"));
-
-            commentThreads.setKey(apiKey);
-            commentThreads.setVideoId(videoId);
-            commentThreads.setMaxResults(1L);
-            commentThreads.setOrder("relevance");
-            commentThreads.setTextFormat("plainText");
-
-            CommentThreadListResponse response = commentThreads.execute();
-
-            if (response != null && !response.getItems().isEmpty()) {
-                return Optional.ofNullable(response.getItems().get(0).getSnippet().getTopLevelComment());
-            } else {
-                return Optional.empty();
-            }
-
-        }catch (GoogleJsonResponseException e) {
-            // 동영상 ID가 잘못되었거나, 삭제되었거나, 댓글 기능이 아예 비활성화된 경우
-            if (e.getStatusCode() == 404) {
-                return Optional.empty();
-            }
-            throw createYoutubeApiException(e);
-        } catch (IOException e) {
-            throw new YoutubeNetworkException(e);
-        } catch (Exception e) {
-            throw new YoutubeApiGeneralException(e);
-        }
-    }
-
     public List<Video> getVideosDetails(List<String> videoIds) {
         if (videoIds == null || videoIds.isEmpty()) {
             return Collections.emptyList();
         }
         try {
-            YouTube.Videos.List videosList = youtube.videos().list(Collections.singletonList("snippet,contentDetails"));
+            YouTube.Videos.List videosList = youtube.videos().list(Collections.singletonList("snippet,contentDetails,statistics"));
             videosList.setKey(apiKey);
             videosList.setId(videoIds);
             videosList.setMaxResults((long) videoIds.size());
@@ -115,6 +84,30 @@ public class YoutubeApiService {
             }
             return videoListResponse.getItems();
 
+        } catch (GoogleJsonResponseException e) {
+            throw createYoutubeApiException(e);
+        } catch (IOException e) {
+            throw new YoutubeNetworkException(e);
+        } catch (Exception e) {
+            throw new YoutubeApiGeneralException(e);
+        }
+    }
+
+    public List<Channel> getChannelsDetails(List<String> channelIds) {
+        if (channelIds == null || channelIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            YouTube.Channels.List channelsList = youtube.channels().list(Collections.singletonList("snippet,statistics"));
+            channelsList.setKey(apiKey);
+            channelsList.setId(channelIds);
+            channelsList.setMaxResults((long) channelIds.size());
+
+            ChannelListResponse channelListResponse = channelsList.execute();
+            if (channelListResponse == null || channelListResponse.getItems().isEmpty()) {
+                return Collections.emptyList();
+            }
+            return channelListResponse.getItems();
         } catch (GoogleJsonResponseException e) {
             throw createYoutubeApiException(e);
         } catch (IOException e) {
