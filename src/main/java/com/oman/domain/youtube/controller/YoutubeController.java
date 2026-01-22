@@ -1,5 +1,6 @@
 package com.oman.domain.youtube.controller;
 
+import com.oman.domain.fastapi.dto.FastApiInferenceResponse;
 import com.oman.domain.youtube.dto.response.YoutubeVideoResponse;
 import com.oman.domain.youtube.service.YoutubeService;
 import java.nio.file.Path;
@@ -23,9 +24,9 @@ public class YoutubeController {
      * @return 상위 10개 동영상의 정보 리스트
      */
     @GetMapping("/search/videos")
-    public ResponseEntity<YoutubeVideoResponse> searchYoutubeVideos(@RequestParam String query) {
-        YoutubeVideoResponse videoResponses = youtubeService.processAndSaveRecipeVideos(query);
-        return ResponseEntity.ok(videoResponses);
+    public ResponseEntity<String> searchYoutubeVideos(@RequestParam String query) {
+        String result = youtubeService.processAndSaveRecipeVideos(query);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/search/summary/export-txt")
