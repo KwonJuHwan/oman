@@ -5,6 +5,8 @@ import com.google.api.services.youtube.model.SearchResult;
 import com.google.api.services.youtube.model.Video;
 import com.oman.domain.culinary.entity.Culinary;
 import com.oman.domain.culinary.repository.CulinaryRepository;
+import com.oman.domain.fastapi.client.FastApiClient;
+import com.oman.domain.fastapi.dto.FastApiInferenceResponse;
 import com.oman.domain.youtube.dto.response.YoutubeVideoResponse;
 import com.oman.domain.youtube.entity.YoutubeChannel;
 import com.oman.domain.youtube.entity.YoutubeVideo;
@@ -12,6 +14,7 @@ import com.oman.domain.youtube.repository.YoutubeChannelRepository;
 import com.oman.domain.youtube.repository.YoutubeVideoRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 
 import java.math.BigInteger;
@@ -21,38 +24,37 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
+
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class YoutubeService {
 
     private final YoutubeApiService youtubeApiService;
+    private final YoutubeIngredientService youtubeIngredientService;
     private final YoutubeVideoRepository youtubeVideoRepository;
     private final YoutubeChannelRepository youtubeChannelRepository;
     private final CulinaryRepository culinaryRepository;
-    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
+    private final FastApiClient fastApiClient;
 
     @Value("${app.file.storage-dir}")
     private String fileStorageDir;
 
 
     @Transactional // 쓰기 트랜잭션
-    public YoutubeVideoResponse processAndSaveRecipeVideos(String recipeName) {
+    public String  processAndSaveRecipeVideos(String recipeName) {
         // 1. Culinary 엔티티 조회 또는 생성
         Culinary culinary = findOrCreateCulinary(recipeName);
 
@@ -60,10 +62,8 @@ public class YoutubeService {
         List<SearchResult> searchResults = youtubeApiService.searchVideos(recipeName);
 
         if (searchResults.isEmpty()) {
-            return YoutubeVideoResponse.builder()
-                .searchedRecipeName(recipeName)
-                .videoDescriptions(new HashMap<>())
-                .build();
+            log.warn("No YouTube videos found for recipe: {}", recipeName);
+            return "fail"; // 비디오가 없으면 0개 반환
         }
 
         // 3. 비디오 ID 및 채널 ID 추출
@@ -79,15 +79,18 @@ public class YoutubeService {
             .toList();
 
         // 4. 비디오 및 채널 상세 정보 비동기 조회
-        CompletableFuture<Map<String, Video>> videoDetailsFuture = fetchVideoDetailsAsync(videoIds);
-        CompletableFuture<Map<String, Channel>> channelDetailsFuture = fetchChannelDetailsAsync(channelIds);
+        CompletableFuture<Map<String, Video>> videoDetailsFuture =
+            youtubeApiService.fetchVideoDetailsAsync(videoIds);
+        CompletableFuture<Map<String, Channel>> channelDetailsFuture =
+            youtubeApiService.fetchChannelDetailsAsync(channelIds);
 
         // 비동기 작업 결과 Join
         Map<String, Video> videoDetailsMap = videoDetailsFuture.join();
         Map<String, Channel> channelDetailsMap = channelDetailsFuture.join();
 
         // 5. YoutubeVideo, YoutubeChannel 엔티티 저장 및 Description 반환 Map 생성
-        Map<String, String> videoDescriptionsToReturn = new HashMap<>();
+        Map<String, String> videoDescriptionsForFastApi = new HashMap<>();
+        Map<String, YoutubeVideo> savedYoutubeVideos = new HashMap<>();
 
         for (SearchResult searchResult : searchResults) {
             String apiVideoId = searchResult.getId().getVideoId();
@@ -95,21 +98,38 @@ public class YoutubeService {
 
             // 비디오 상세 정보
             Video videoDetail = videoDetailsMap.get(apiVideoId);
-            String descriptionForResponse = getDescriptionFromVideoDetail(videoDetail);
+            String descriptionForFastApi = getDescriptionFromVideoDetail(videoDetail);
 
             // 채널 정보 조회/생성 및 통계 저장
             YoutubeChannel youtubeChannel = findOrCreateChannel(searchResult.getSnippet().getChannelId(), searchResult.getSnippet().getChannelTitle(), channelDetailsMap);
 
             // YoutubeVideo 엔티티 저장
-            saveYoutubeVideo(searchResult, videoDetail, youtubeChannel, culinary);
+            YoutubeVideo youtubeVideo = saveYoutubeVideo(searchResult, videoDetail, youtubeChannel, culinary);
+            savedYoutubeVideos.put(apiVideoId, youtubeVideo);
 
-            videoDescriptionsToReturn.put(apiVideoId, descriptionForResponse);
+            videoDescriptionsForFastApi.put(apiVideoId, descriptionForFastApi);
         }
 
-        return YoutubeVideoResponse.builder()
+        // FastAPI 모델 추론 API 호출을 위한 요청 DTO
+        YoutubeVideoResponse fastapiRequestDto = YoutubeVideoResponse.builder()
             .searchedRecipeName(recipeName)
-            .videoDescriptions(videoDescriptionsToReturn)
+            .videoDescriptions(videoDescriptionsForFastApi)
             .build();
+
+        log.info("Calling FastAPI for inference for recipe: {}", recipeName);
+        FastApiInferenceResponse fastApiResult = fastApiClient.callInferenceApi(fastapiRequestDto);
+
+        if (fastApiResult != null && fastApiResult.getResults() != null) {
+            fastApiResult.getResults().forEach((videoId, inferenceResultForVideo) -> {
+                YoutubeVideo youtubeVideo = savedYoutubeVideos.get(videoId);
+                if (youtubeVideo != null) {
+                    youtubeIngredientService.processAndSaveYoutubeIngredients(youtubeVideo, inferenceResultForVideo.getExtractedIngredients());
+                } else {
+                    log.warn("YoutubeVideo 엔티티를 찾을 수 없습니다. videoId: {}", videoId);
+                }
+            });
+        }
+        return "success!~";
     }
 
 
@@ -126,7 +146,7 @@ public class YoutubeService {
             .filter(Objects::nonNull)
             .toList();
 
-        CompletableFuture<Map<String, Video>> videoDetailsFuture = fetchVideoDetailsAsync(videoIds);
+        CompletableFuture<Map<String, Video>> videoDetailsFuture = youtubeApiService.fetchVideoDetailsAsync(videoIds);
         Map<String, Video> videoDetailsMap = videoDetailsFuture.join();
 
         Map<String, String> videoDescriptionsForFile = new HashMap<>();
@@ -198,35 +218,6 @@ public class YoutubeService {
             .orElseGet(() -> culinaryRepository.save(Culinary.builder().name(recipeName).build()));
     }
 
-    /**
-     * 비디오 상세 정보를 비동기로 조회
-     */
-    private CompletableFuture<Map<String, Video>> fetchVideoDetailsAsync(List<String> videoIds) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<Video> details = youtubeApiService.getVideosDetails(videoIds);
-                return details.stream().collect(Collectors.toMap(Video::getId, dto -> dto));
-            } catch (Exception ex) {
-                System.err.println("비디오 상세 정보 조회 중 오류 발생: " + ex.getMessage());
-                return Collections.emptyMap();
-            }
-        }, executorService);
-    }
-
-    /**
-     * 채널 상세 정보를 비동기로 조회
-     */
-    private CompletableFuture<Map<String, Channel>> fetchChannelDetailsAsync(List<String> channelIds) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<Channel> details = youtubeApiService.getChannelsDetails(channelIds);
-                return details.stream().collect(Collectors.toMap(Channel::getId, dto -> dto));
-            } catch (Exception ex) {
-                System.err.println("채널 상세 정보 조회 중 오류 발생: " + ex.getMessage());
-                return Collections.emptyMap();
-            }
-        }, executorService);
-    }
 
     private YoutubeChannel findOrCreateChannel(String apiChannelId, String channelTitle, Map<String, Channel> channelDetailsMap) {
         Optional<YoutubeChannel> existingChannelOpt = youtubeChannelRepository.findByApiChannelId(apiChannelId);
@@ -265,7 +256,7 @@ public class YoutubeService {
     /**
      * YoutubeVideo 엔티티를 생성하고 저장
      */
-    private void saveYoutubeVideo(SearchResult searchResult, Video videoDetail, YoutubeChannel youtubeChannel, Culinary culinary) {
+    private YoutubeVideo saveYoutubeVideo(SearchResult searchResult, Video videoDetail, YoutubeChannel youtubeChannel, Culinary culinary) {
         String apiVideoId = searchResult.getId().getVideoId();
         String thumbnailUrl = Optional.ofNullable(videoDetail)
             .map(Video::getSnippet)
@@ -291,6 +282,7 @@ public class YoutubeService {
         if (existingVideoOpt.isPresent()){
             YoutubeVideo existingVideo = existingVideoOpt.get();;
             existingVideo.updateStatistics(viewCount,likeCount,commentCount);
+            return existingVideo;
         }
         else {
             YoutubeVideo newVideo = YoutubeVideo.builder()
@@ -303,7 +295,7 @@ public class YoutubeService {
                 .channel(youtubeChannel)
                 .culinary(culinary)
                 .build();
-            youtubeVideoRepository.save(newVideo);
+            return youtubeVideoRepository.save(newVideo);
         }
 
     }
