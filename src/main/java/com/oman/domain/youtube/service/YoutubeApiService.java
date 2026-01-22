@@ -1,9 +1,6 @@
 package com.oman.domain.youtube.service;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.SearchListResponse;
 import com.google.api.services.youtube.model.SearchResult;
@@ -12,6 +9,12 @@ import com.google.api.services.youtube.model.VideoListResponse;
 import com.google.api.services.youtube.model.Channel;
 import com.google.api.services.youtube.model.ChannelListResponse;
 import com.oman.global.error.exception.YoutubeApiException;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +26,9 @@ import com.oman.domain.youtube.exception.*;
 
 
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class YoutubeApiService {
 
     @Value("${youtube.api.key}")
@@ -31,15 +36,10 @@ public class YoutubeApiService {
 
     private static final long NUMBER_OF_VIDEOS_RETURNED = 20;
     private static final String VIDEO_DURATION_FILTER = "medium";
-    private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 
 
-    private YouTube youtube;
-
-    public YoutubeApiService() {
-        youtube = new YouTube.Builder(new NetHttpTransport(), JSON_FACTORY, request -> {
-        }).setApplicationName("youtube-video-search").build();
-    }
+    private final YouTube youtube;
+    private final ExecutorService youtubeApiExecutorService;
 
     public List<SearchResult> searchVideos(String query) {
         try {
@@ -115,6 +115,31 @@ public class YoutubeApiService {
         } catch (Exception e) {
             throw new YoutubeApiGeneralException(e);
         }
+    }
+
+    public CompletableFuture<Map<String, Video>> fetchVideoDetailsAsync(List<String> videoIds) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                List<Video> details = getVideosDetails(videoIds);
+                return details.stream().collect(Collectors.toMap(Video::getId, dto -> dto));
+            } catch (Exception ex) {
+                log.error("비디오 상세 정보 비동기 조회 중 오류 발생: {}", ex.getMessage(), ex);
+                return Collections.emptyMap();
+            }
+        }, youtubeApiExecutorService);
+    }
+
+
+    public CompletableFuture<Map<String, Channel>> fetchChannelDetailsAsync(List<String> channelIds) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                List<Channel> details = getChannelsDetails(channelIds);
+                return details.stream().collect(Collectors.toMap(Channel::getId, dto -> dto));
+            } catch (Exception ex) {
+                log.error("채널 상세 정보 비동기 조회 중 오류 발생: {}", ex.getMessage(), ex);
+                return Collections.emptyMap();
+            }
+        }, youtubeApiExecutorService);
     }
 
     private YoutubeApiException createYoutubeApiException(GoogleJsonResponseException e) {
