@@ -1,8 +1,6 @@
 package com.oman.domain.youtube.controller;
 
-import com.oman.domain.fastapi.dto.FastApiInferenceResponse;
-import com.oman.domain.youtube.dto.response.YoutubeVideoResponse;
-import com.oman.domain.youtube.service.YoutubeService;
+import com.oman.domain.youtube.service.YoutubeProcessService;
 import java.nio.file.Path;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/youtube")
 @RequiredArgsConstructor
 public class YoutubeController {
-    private final YoutubeService youtubeService;
+    private final YoutubeProcessService youtubeService;
 
     /**
      * 검색어를 기반으로 상위 10개의 유튜브 동영상 정보와 첫 댓글 조회
