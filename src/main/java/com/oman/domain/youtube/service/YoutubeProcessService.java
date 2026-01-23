@@ -41,11 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class YoutubeProcessService {
 
-    private final YoutubeApiService youtubeApiService;
+    private final YoutubeApiClient youtubeApiClient;
     private final YoutubeCommandService youtubeCommandService;
-    private final YoutubeVideoRepository youtubeVideoRepository;
-    private final YoutubeChannelRepository youtubeChannelRepository;
-    private final CulinaryRepository culinaryRepository;
     private final FastApiClient fastApiClient;
 
     @Value("${app.file.storage-dir}")
@@ -56,7 +53,7 @@ public class YoutubeProcessService {
      */
     public String processAndSaveRecipeVideos(String recipeName) {
         // YouTube Search API 호출
-        List<SearchResult> searchResults = youtubeApiService.searchVideos(recipeName);
+        List<SearchResult> searchResults = youtubeApiClient.searchVideos(recipeName);
         if (searchResults.isEmpty()) {
             log.warn("No YouTube videos found for recipe: {}", recipeName);
             return "fail";
@@ -71,9 +68,9 @@ public class YoutubeProcessService {
                 it -> it.getSnippet().getChannelId()).distinct().toList();
 
         CompletableFuture<Map<String, Video>> videoFuture =
-            youtubeApiService.fetchVideoDetailsAsync(videoIds);
+            youtubeApiClient.fetchVideoDetailsAsync(videoIds);
         CompletableFuture<Map<String, Channel>> channelFuture =
-            youtubeApiService.fetchChannelDetailsAsync(channelIds);
+            youtubeApiClient.fetchChannelDetailsAsync(channelIds);
 
         Map<String, Video> videoMap = videoFuture.join();
         Map<String, Channel> channelMap = channelFuture.join();
@@ -113,7 +110,7 @@ public class YoutubeProcessService {
 
     // DATA labeling용 데이터 뽑는 용도 - Training Model
     public Path saveDescriptionsForLabeling(String query) {
-        List<SearchResult> searchResults = youtubeApiService.searchVideos(query + " 레시피");
+        List<SearchResult> searchResults = youtubeApiClient.searchVideos(query + " 레시피");
 
         if (searchResults.isEmpty()) {
             System.out.println("경고: '" + query + "' 쿼리에 해당하는 비디오를 찾을 수 없어 파일을 저장하지 않습니다.");
@@ -125,7 +122,7 @@ public class YoutubeProcessService {
             .filter(Objects::nonNull)
             .toList();
 
-        CompletableFuture<Map<String, Video>> videoDetailsFuture = youtubeApiService.fetchVideoDetailsAsync(videoIds);
+        CompletableFuture<Map<String, Video>> videoDetailsFuture = youtubeApiClient.fetchVideoDetailsAsync(videoIds);
         Map<String, Video> videoDetailsMap = videoDetailsFuture.join();
 
         Map<String, String> videoDescriptionsForFile = new HashMap<>();
