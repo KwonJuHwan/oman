@@ -31,7 +31,7 @@ public class YoutubeIngredient extends BaseTimeEntity {
     private String name;
 
     @Column(nullable = false, length = 100)
-    private String extractedName; // NER로 추출된 실제 재료명
+    private String extractedName;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ingredient_id")

@@ -29,7 +29,7 @@ import com.oman.domain.youtube.exception.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class YoutubeApiService {
+public class YoutubeApiClient {
 
     @Value("${youtube.api.key}")
     private String apiKey;
