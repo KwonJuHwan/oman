@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CulinaryIngredientStatistic extends BaseTimeEntity {
+public class IngredientStatistic extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,5 +35,11 @@ public class CulinaryIngredientStatistic extends BaseTimeEntity {
 
     @Column(nullable = false)
     private double percentage;
+
+    public void updateStatistics(int totalVideoCount,int ingredientIncludedVideoCount, double percentage){
+        this.totalVideoCount = totalVideoCount;
+        this.ingredientIncludedVideoCount = ingredientIncludedVideoCount;
+        this.percentage = percentage;
+    }
 
 }

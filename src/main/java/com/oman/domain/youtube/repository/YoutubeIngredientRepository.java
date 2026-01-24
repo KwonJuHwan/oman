@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface YoutubeIngredientRepository extends JpaRepository<YoutubeIngredient, Long> {
+public interface YoutubeIngredientRepository extends JpaRepository<YoutubeIngredient, Long>,YoutubeIngredientRepositoryCustom {
     List<YoutubeIngredient> findByYoutubeVideo(YoutubeVideo youtubeVideo);
+
 }
