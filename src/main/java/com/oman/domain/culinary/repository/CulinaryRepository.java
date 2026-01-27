@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface CulinaryRepository extends JpaRepository<Culinary, Long> {
     Optional<Culinary> findByName(String name);
     Page<Culinary> findAll(Pageable pageable);
+
+    boolean existsByName(String culinaryName);
 }

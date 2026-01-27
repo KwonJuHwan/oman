@@ -12,4 +12,5 @@ import java.util.List;
 public interface YoutubeIngredientRepository extends JpaRepository<YoutubeIngredient, Long>,YoutubeIngredientRepositoryCustom {
     List<YoutubeIngredient> findByYoutubeVideo(YoutubeVideo youtubeVideo);
 
+    void deleteByYoutubeVideoIdIn(List<Long> videoIds);
 }
