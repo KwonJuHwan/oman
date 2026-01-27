@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,13 +19,15 @@ public class YoutubeController {
     private final YoutubeProcessService youtubeService;
 
     /**
-     * 검색어를 기반으로 상위 10개의 유튜브 동영상 정보와 첫 댓글 조회
-     * @param query 검색어
-     * @return 상위 10개 동영상의 정보 리스트
+     * 유튜브 레시피 영상 수집 및 데이터화
+     * @param recipeName 검색할 요리 이름 (예: 김치찌개)
+     * @param reInference 강제 재추론 여부 (기존 재료/메타데이터 삭제 후 재생성)
      */
-    @GetMapping("/search/videos")
-    public ResponseEntity<String> searchYoutubeVideos(@RequestParam String query) {
-        String result = youtubeService.processAndSaveRecipeVideos(query);
+    @PostMapping("/recipes/{recipeName}/process")
+    public ResponseEntity<String> processYoutubeRecipes(
+        @PathVariable String recipeName,
+        @RequestParam(value = "reInference", defaultValue = "false") boolean reInference) {
+        String result = youtubeService.processAndSaveRecipeVideos(recipeName, reInference);
         return ResponseEntity.ok(result);
     }
 
