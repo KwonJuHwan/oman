@@ -12,11 +12,14 @@ import com.oman.domain.fastapi.dto.InferenceResultForVideo;
 import com.oman.domain.youtube.entity.YoutubeChannel;
 import com.oman.domain.youtube.entity.YoutubeIngredient;
 import com.oman.domain.youtube.entity.YoutubeVideo;
+import com.oman.domain.youtube.entity.YoutubeVideoMeta;
 import com.oman.domain.youtube.repository.YoutubeChannelRepository;
 import com.oman.domain.youtube.repository.YoutubeIngredientRepository;
+import com.oman.domain.youtube.repository.YoutubeVideoMetaRepository;
 import com.oman.domain.youtube.repository.YoutubeVideoRepository;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +43,7 @@ public class YoutubeCommandService {
     private final YoutubeChannelRepository channelRepository;
     private final IngredientRepository ingredientRepository;
     private final YoutubeIngredientRepository youtubeIngredientRepository;
+    private final YoutubeVideoMetaRepository youtubeVideoMetaRepository;
     private final YoutubeVideoRepository videoRepository;
     private final IngredientProcessor ingredientProcessor;
 
@@ -82,7 +86,14 @@ public class YoutubeCommandService {
         }
         return resultVideos;
     }
-    public void saveInferenceResults(List<YoutubeVideo> savedVideos, Map<String, InferenceResultForVideo> results) {
+    @Transactional
+    public void saveInferenceResults(List<YoutubeVideo> savedVideos,
+        Map<String, InferenceResultForVideo> results,
+        boolean forceReInference) {
+        if (forceReInference) {
+            cleanupVideoIngredientsAndMeta(savedVideos);
+        }
+
         Map<String, YoutubeVideo> videoMap = savedVideos.stream()
             .collect(Collectors.toMap(YoutubeVideo::getApiVideoId, v -> v));
 
@@ -102,6 +113,9 @@ public class YoutubeCommandService {
         results.forEach((videoId, result) -> {
             YoutubeVideo video = videoMap.get(videoId);
             if (video != null) {
+                if (!forceReInference && !video.getVideoIngredients().isEmpty()) {
+                    return;
+                }
                 List<YoutubeIngredient> entities = ingredientProcessor.filterAndCreateEntities(
                     video, result.getExtractedIngredients(), ingredientMasterMap
                 );
@@ -111,6 +125,7 @@ public class YoutubeCommandService {
 
         // 4. 최종 Bulk Save
         youtubeIngredientRepository.saveAll(allToSave);
+        createVideoMetas(savedVideos, allToSave, forceReInference);
     }
 
     private Map<String, Ingredient> prepareIngredientMaster(Set<String> names) {
@@ -200,6 +215,42 @@ public class YoutubeCommandService {
                 .culinary(culinary)
                 .build();
         }
+    }
+    private void createVideoMetas(List<YoutubeVideo> savedVideos,
+        List<YoutubeIngredient> allIngredients,
+        boolean forceReInference) {
+        Map<Long, Set<Long>> videoIngredientMap = allIngredients.stream()
+            .filter(vi -> vi.getIngredient() != null)
+            .collect(Collectors.groupingBy(
+                vi -> vi.getYoutubeVideo().getId(),
+                Collectors.mapping(vi -> vi.getIngredient().getId(), Collectors.toSet())
+            ));
 
+        // forceReInference가 false면 기존에 메타데이터가 있는 영상은 제외
+        List<Long> videoIds = savedVideos.stream().map(YoutubeVideo::getId).toList();
+        Set<Long> existingMetaIds = forceReInference ? Collections.emptySet() :
+            youtubeVideoMetaRepository.findAllByYoutubeVideoIdIn(videoIds).stream()
+                .map(YoutubeVideoMeta::getYoutubeVideoId).collect(Collectors.toSet());
+
+        List<YoutubeVideoMeta> metasToSave = savedVideos.stream()
+            .filter(video -> !existingMetaIds.contains(video.getId())) // 기존에 있으면 스킵
+            .filter(video -> videoIngredientMap.containsKey(video.getId())) // 이번에 생성된 재료가 있어야 함
+            .map(video -> YoutubeVideoMeta.of(video, videoIngredientMap.get(video.getId())))
+            .toList();
+
+        youtubeVideoMetaRepository.saveAll(metasToSave);
+    }
+
+    private void cleanupVideoIngredientsAndMeta(List<YoutubeVideo> videos) {
+        List<Long> videoIds = videos.stream().map(YoutubeVideo::getId).toList();
+
+        // 1. 해당 비디오들의 재료 데이터 삭제
+        youtubeIngredientRepository.deleteByYoutubeVideoIdIn(videoIds);
+
+        // 2. 해당 비디오들의 메타데이터 삭제
+        youtubeVideoMetaRepository.deleteByYoutubeVideoIdIn(videoIds);
+
+        // JPA 1차 캐시/영속성 컨텍스트 초기화
+        videos.forEach(v -> v.getVideoIngredients().clear());
     }
 }
