@@ -39,6 +39,9 @@ public class YoutubeVideo extends BaseTimeEntity {
     @JoinColumn(name = "culinary_id", nullable = false)
     private Culinary culinary;
 
+    @OneToOne(mappedBy = "youtubeVideo", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private YoutubeVideoMeta videoMeta;
+
     @OneToMany(mappedBy = "youtubeVideo", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<YoutubeIngredient> videoIngredients = new ArrayList<>();
