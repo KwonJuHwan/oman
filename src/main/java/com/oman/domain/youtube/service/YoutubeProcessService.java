@@ -51,7 +51,7 @@ public class YoutubeProcessService {
     /**
      * 전체 프로세스 메인 메서드
      */
-    public String processAndSaveRecipeVideos(String recipeName) {
+    public String processAndSaveRecipeVideos(String recipeName, boolean forceReInference) {
         // YouTube Search API 호출
         List<SearchResult> searchResults = youtubeApiClient.searchVideos(recipeName);
         if (searchResults.isEmpty()) {
@@ -78,8 +78,18 @@ public class YoutubeProcessService {
         // 3. 1차 DB 저장 및 업데이트
         List<YoutubeVideo> savedVideos = youtubeCommandService.saveOrUpdateYoutubeData(recipeName, searchResults, videoMap, channelMap);
 
+        // 모델 추론이 필요한 비디오 선별
+        List<YoutubeVideo> videosForInference = savedVideos.stream()
+            .filter(v -> forceReInference || v.getVideoIngredients().isEmpty())
+            .toList();
+
+        if (videosForInference.isEmpty()) {
+            log.info("All videos already have ingredient data. Skipping inference.");
+            return "success (skipped inference)";
+        }
+
         // 4. FastAPI 모델 추론 호출
-        Map<String, String> videoDescriptions = savedVideos.stream()
+        Map<String, String> videoDescriptions = videosForInference.stream()
             .collect(Collectors.toMap(
                 YoutubeVideo::getApiVideoId,
                 v -> getDescriptionFromVideoDetail(videoMap.get(v.getApiVideoId()))
@@ -95,7 +105,7 @@ public class YoutubeProcessService {
 
         // 5. 추론 결과 최종 저장
         if (fastApiResult != null && fastApiResult.getResults() != null) {
-            youtubeCommandService.saveInferenceResults(savedVideos, fastApiResult.getResults());
+            youtubeCommandService.saveInferenceResults(savedVideos, fastApiResult.getResults(),forceReInference);
         }
 
         return "success!~";
