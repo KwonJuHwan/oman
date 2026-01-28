@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
-@Slf4j // 로깅을 위한 Lombok 어노테이션
+@Slf4j
 @Service
 public class FastApiClient {
 
@@ -32,14 +32,13 @@ public class FastApiClient {
     }
 
 
-    public FastApiInferenceResponse callInferenceApi(YoutubeVideoResponse youtubeVideoResponse) {
+    public Mono<FastApiInferenceResponse> callInferenceApi(YoutubeVideoResponse youtubeVideoResponse) {
 
         return webClient.post()
-            .body(BodyInserters.fromValue(youtubeVideoResponse))
+            .bodyValue(youtubeVideoResponse)
             .retrieve()
             .bodyToMono(FastApiInferenceResponse.class)
             .timeout(Duration.ofSeconds(60))
-            .doOnError(e -> log.error("Error calling FastAPI inference API: {}", e.getMessage(), e))
-            .block();
+            .doOnError(e -> log.error("FastAPI Error: {}", e.getMessage()));
     }
 }
