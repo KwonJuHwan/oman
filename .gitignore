@@ -35,3 +35,16 @@ out/
 
 ### VS Code ###
 .vscode/
+# .env 파일 제외
+.env
+
+# QueryDSL 생성 파일 (QEntity) 제외
+**/Q*.java
+
+# gradle로 시작하는 모든 파일 및 디렉토리 제외 (gradlew, gradle-wrapper.jar 등)
+gradle*
+!gradle-wrapper.properties  # 필요 시 특정 파일만 제외 취소 가능
+
+# yaml 설정 파일 제외
+*.yaml
+*.yml
