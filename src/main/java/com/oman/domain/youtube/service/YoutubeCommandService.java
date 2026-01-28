@@ -27,7 +27,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import com.google.api.services.youtube.model.VideoStatistics;
 import com.google.api.services.youtube.model.VideoSnippet;
@@ -35,7 +37,7 @@ import com.google.api.services.youtube.model.ThumbnailDetails;
 import com.google.api.services.youtube.model.Thumbnail;
 
 
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class YoutubeCommandService {
@@ -44,6 +46,7 @@ public class YoutubeCommandService {
     private final IngredientRepository ingredientRepository;
     private final YoutubeIngredientRepository youtubeIngredientRepository;
     private final YoutubeVideoMetaRepository youtubeVideoMetaRepository;
+    private final YoutubeVideoRepository youtubeVideoRepository;
     private final YoutubeVideoRepository videoRepository;
     private final IngredientProcessor ingredientProcessor;
 
@@ -69,13 +72,17 @@ public class YoutubeCommandService {
 
         for (SearchResult res : searchResults) {
             String vidId = res.getId().getVideoId();
+            String apiChannelId = res.getSnippet().getChannelId();
             if (vidId == null) continue;
 
             // 채널 처리
-            YoutubeChannel channel = existingChannels.get(res.getSnippet().getChannelId());
-            Channel detail = channelMap.get(res.getSnippet().getChannelId());
+            YoutubeChannel channel = existingChannels.get(apiChannelId);
+            Channel detail = channelMap.get(apiChannelId);
             channel = updateOrCreateChannel(channel, res, detail);
-            if (channel.getId() == null) channelRepository.save(channel);
+            if (channel.getId() == null) {
+                channelRepository.save(channel);
+                existingChannels.put(apiChannelId, channel);
+            }
 
             // 비디오 처리
             YoutubeVideo video = existingVideos.get(vidId);
@@ -86,7 +93,8 @@ public class YoutubeCommandService {
         }
         return resultVideos;
     }
-    @Transactional
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveInferenceResults(List<YoutubeVideo> savedVideos,
         Map<String, InferenceResultForVideo> results,
         boolean forceReInference) {
@@ -252,5 +260,34 @@ public class YoutubeCommandService {
 
         // JPA 1차 캐시/영속성 컨텍스트 초기화
         videos.forEach(v -> v.getVideoIngredients().clear());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getRandomVideoIngredientIds(String culinaryName) {
+        // 1. 해당 요리에 연결된 모든 비디오 조회 (재료 포함)
+        List<YoutubeVideo> videos = youtubeVideoRepository.findAllByCulinaryName(culinaryName);
+
+        if (videos.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. 비디오 리스트를 무작위로 섞음
+        List<YoutubeVideo> shuffledVideos = new ArrayList<>(videos);
+        Collections.shuffle(shuffledVideos);
+
+        // 3. 첫 번째 비디오를 선택
+        YoutubeVideo randomVideo = shuffledVideos.get(0);
+
+        log.info("무작위 선택된 비디오: [{}] {}", randomVideo.getApiVideoId(), randomVideo.getTitle());
+
+        // 4. 해당 비디오의 재료 ID들만 추출
+        List<Long> ingredientIds = randomVideo.getVideoIngredients().stream()
+            .map(vi -> vi.getIngredient().getId())
+            .distinct()
+            .toList();
+
+        log.info("추출된 재료 ID 목록 (총 {}개): {}", ingredientIds.size(), ingredientIds);
+
+        return ingredientIds;
     }
 }
