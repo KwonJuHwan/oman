@@ -101,14 +101,21 @@ public class YoutubeProcessService {
             .build();
 
         log.info("Calling FastAPI for inference: {}", recipeName);
-        FastApiInferenceResponse fastApiResult = fastApiClient.callInferenceApi(fastApiRequestDto);
+        fastApiClient.callInferenceApi(fastApiRequestDto)
+            .toFuture()
+            .thenAccept(result -> {
+                if (result != null && result.getResults() != null) {
+                    // 이 블록은 응답이 도착했을 때 별도 스레드에서 실행
+                    youtubeCommandService.saveInferenceResults(savedVideos, result.getResults(), forceReInference);
+                    log.info("Inference results saved for: {}", recipeName);
+                }
+            })
+            .exceptionally(ex -> {
+                log.error("Async inference failed: {}", ex.getMessage());
+                return null;
+            });
 
-        // 5. 추론 결과 최종 저장
-        if (fastApiResult != null && fastApiResult.getResults() != null) {
-            youtubeCommandService.saveInferenceResults(savedVideos, fastApiResult.getResults(),forceReInference);
-        }
-
-        return "success!~";
+        return "processing started";
     }
 
     private String getDescriptionFromVideoDetail(Video videoDetail) {
@@ -120,7 +127,7 @@ public class YoutubeProcessService {
 
     // DATA labeling용 데이터 뽑는 용도 - Training Model
     public Path saveDescriptionsForLabeling(String query) {
-        List<SearchResult> searchResults = youtubeApiClient.searchVideos(query + " 레시피");
+        List<SearchResult> searchResults = youtubeApiClient.searchVideos(query);
 
         if (searchResults.isEmpty()) {
             System.out.println("경고: '" + query + "' 쿼리에 해당하는 비디오를 찾을 수 없어 파일을 저장하지 않습니다.");
