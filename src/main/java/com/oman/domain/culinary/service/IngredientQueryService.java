@@ -26,6 +26,6 @@ public class IngredientQueryService {
 
 
     public List<Ingredient> findAllById(Set<Long> ingredientId){
-        return ingredientRepository.findAllById(ingredientId);
+        return ingredientRepository.findAllByIdIn(ingredientId);
     }
 }
