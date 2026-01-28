@@ -7,6 +7,7 @@ import com.oman.domain.statistic.dto.CulinaryIngredientResponse;
 import com.oman.domain.statistic.service.IngredientStatisticQueryService;
 import com.oman.domain.culinary.entity.Ingredient;
 import com.oman.domain.youtube.entity.YoutubeVideoMeta;
+import com.oman.domain.youtube.service.YoutubeCommandService;
 import com.oman.domain.youtube.service.YoutubeQueryService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,10 +30,16 @@ public class RecipeIntegrationService {
     private final IngredientStatisticQueryService statisticsQueryService;
     private final IngredientQueryService ingredientQueryService;
     private final YoutubeQueryService youtubeQueryService;
+    private final YoutubeCommandService youtubeCommandService;
 
     public List<CulinaryIngredientResponse> getIngredientStatistics(String culinaryName){
         return statisticsQueryService.getIngredientStatistics(culinaryName);
     }
+
+    public List<Long> getRandomVideoIngredientIds(String culinaryName) {
+        return youtubeCommandService.getRandomVideoIngredientIds(culinaryName);
+    }
+
 
     /**
      * 재료 리스트 기반 다중 요리 추천
@@ -53,6 +60,7 @@ public class RecipeIntegrationService {
         }
 
         return groupByCulinary.values().stream()
+            .filter(CulinaryGroup::hasAnyRecipe)
             .map(CulinaryGroup::toDto)
             .toList();
     }
@@ -131,10 +139,15 @@ public class RecipeIntegrationService {
         public void addSurplus(RecipeDetail detail) { surplus.add(detail); }
         public void addMissing(RecipeDetail detail) { missing.add(detail); }
 
+        public boolean hasAnyRecipe() {
+            return !exact.isEmpty() || !surplus.isEmpty() || !missing.isEmpty();
+        }
+
         public CulinaryRecommendationDto toDto() {
             surplus.sort(Comparator.comparingInt(RecipeDetail::diffCount));
             missing.sort(Comparator.comparingInt(RecipeDetail::diffCount));
             return new CulinaryRecommendationDto(culinaryName, exact, surplus, missing);
         }
+
     }
 }

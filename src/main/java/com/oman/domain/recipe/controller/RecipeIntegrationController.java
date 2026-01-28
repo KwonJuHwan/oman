@@ -4,6 +4,7 @@ import com.oman.domain.recipe.dto.request.IngredientRequest;
 import com.oman.domain.recipe.dto.response.CulinaryRecommendationDto;
 import com.oman.domain.recipe.service.RecipeIntegrationService;
 import com.oman.domain.statistic.dto.CulinaryIngredientResponse;
+import com.oman.domain.youtube.repository.YoutubeVideoRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -60,5 +61,11 @@ public class RecipeIntegrationController {
             recipeIntegrationService.getRecommendedVideos(culinaryName, request.ingredientIds());
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/test/ingredients/{culinaryName}")
+    public ResponseEntity<List<Long>> getRandomIngredientIds(@PathVariable String culinaryName) {
+        List<Long> ingredientIds = recipeIntegrationService.getRandomVideoIngredientIds(culinaryName);
+        return ResponseEntity.ok(ingredientIds);
     }
 }
