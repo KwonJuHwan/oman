@@ -1,10 +1,10 @@
 package com.oman.domain.recipe.controller;
 
 import com.oman.domain.recipe.dto.request.IngredientRequest;
+import com.oman.domain.recipe.dto.response.CulinaryIngredientGroupResponse;
 import com.oman.domain.recipe.dto.response.CulinaryRecommendationDto;
+import com.oman.domain.recipe.dto.response.VideoRecommendationResponseDto;
 import com.oman.domain.recipe.service.RecipeIntegrationService;
-import com.oman.domain.statistic.dto.CulinaryIngredientResponse;
-import com.oman.domain.youtube.repository.YoutubeVideoRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,10 +27,10 @@ public class RecipeIntegrationController {
      * 요리별 재료 통계 정보 조회
      */
     @GetMapping("/culinary")
-    public ResponseEntity<List<CulinaryIngredientResponse>> getStatistics(
+    public ResponseEntity<CulinaryIngredientGroupResponse> getStatistics(
         @RequestParam("name") String culinaryName) {
 
-        List<CulinaryIngredientResponse> response =
+        CulinaryIngredientGroupResponse response =
             recipeIntegrationService.getIngredientStatistics(culinaryName);
 
         return ResponseEntity.ok(response);
@@ -53,11 +53,11 @@ public class RecipeIntegrationController {
      * 특정 요리에 대한 상세 영상 추천
      */
     @PostMapping("/recommendations/{culinaryName}")
-    public ResponseEntity<CulinaryRecommendationDto> getRecommendedVideos(
+    public ResponseEntity<VideoRecommendationResponseDto> getRecommendedVideos(
         @PathVariable String culinaryName,
         @RequestBody IngredientRequest request) {
 
-        CulinaryRecommendationDto response =
+        VideoRecommendationResponseDto response =
             recipeIntegrationService.getRecommendedVideos(culinaryName, request.ingredientIds());
 
         return ResponseEntity.ok(response);
