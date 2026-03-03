@@ -1,23 +1,20 @@
 package com.oman.domain.recipe.service;
 
 import com.oman.domain.culinary.service.IngredientQueryService;
+import com.oman.domain.recipe.dto.response.CulinaryIngredientGroupResponse;
 import com.oman.domain.recipe.dto.response.CulinaryRecommendationDto;
-import com.oman.domain.recipe.dto.response.RecipeDetail;
+import com.oman.domain.recipe.dto.response.IngredientSimpleDto;
+import com.oman.domain.recipe.dto.response.VideoRecommendationResponseDto;
+import com.oman.domain.recipe.dto.response.VideoResponseDto;
 import com.oman.domain.statistic.dto.CulinaryIngredientResponse;
 import com.oman.domain.statistic.service.IngredientStatisticQueryService;
-import com.oman.domain.culinary.entity.Ingredient;
 import com.oman.domain.youtube.entity.YoutubeVideoMeta;
 import com.oman.domain.youtube.service.YoutubeCommandService;
 import com.oman.domain.youtube.service.YoutubeQueryService;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
+import java.util.*;
 import java.util.stream.Collectors;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,122 +29,173 @@ public class RecipeIntegrationService {
     private final YoutubeQueryService youtubeQueryService;
     private final YoutubeCommandService youtubeCommandService;
 
-    public List<CulinaryIngredientResponse> getIngredientStatistics(String culinaryName){
-        return statisticsQueryService.getIngredientStatistics(culinaryName);
+    public CulinaryIngredientGroupResponse getIngredientStatistics(String culinaryName) {
+        List<CulinaryIngredientResponse> resList = statisticsQueryService.getIngredientStatistics(culinaryName);
+        List<CulinaryIngredientResponse> main = new ArrayList<>();
+        List<CulinaryIngredientResponse> sub = new ArrayList<>();
+        List<CulinaryIngredientResponse> other = new ArrayList<>();
+        for (CulinaryIngredientResponse res : resList) {
+            double percentage = res.percentage();
+            if (percentage >= 80.0) {
+                main.add(res);
+            } else if (percentage >= 50.0) {
+                sub.add(res);
+            } else if (percentage >= 20.0) {
+                other.add(res);
+            }
+        }
+        return CulinaryIngredientGroupResponse.builder()
+            .mainIngredients(main)
+            .subIngredients(sub)
+            .otherIngredients(other)
+            .build();
     }
 
     public List<Long> getRandomVideoIngredientIds(String culinaryName) {
         return youtubeCommandService.getRandomVideoIngredientIds(culinaryName);
     }
 
+    public VideoRecommendationResponseDto getRecommendedVideos(String culinaryName, List<Long> userIngredientIds) {
+        Set<Long> userSet = new HashSet<>(userIngredientIds);
+        List<YoutubeVideoMeta> metas = youtubeQueryService.findAllByCulinaryNameWithIngredients(culinaryName);
 
-    /**
-     * 재료 리스트 기반 다중 요리 추천
-     */
+        if (metas.isEmpty()) {
+            return new VideoRecommendationResponseDto(Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<VideoResponseDto> matchVideos = extractMatchVideos(metas, userSet);
+
+        List<VideoResponseDto> popularVideos = extractPopularVideos(metas);
+
+        return new VideoRecommendationResponseDto(matchVideos, popularVideos);
+    }
+
+    private List<VideoResponseDto> extractMatchVideos(List<YoutubeVideoMeta> metas, Set<Long> userSet) {
+        List<YoutubeVideoMeta> correct = new ArrayList<>();
+        List<YoutubeVideoMeta> enough = new ArrayList<>();
+        List<YoutubeVideoMeta> needed = new ArrayList<>();
+
+        for (YoutubeVideoMeta meta : metas) {
+            Set<Long> videoSet = meta.getIngredientIds();
+            Set<Long> missingIds = new HashSet<>(videoSet);
+            missingIds.removeAll(userSet);
+
+            if (missingIds.isEmpty()) {
+                Set<Long> surplusIds = new HashSet<>(userSet);
+                surplusIds.removeAll(videoSet);
+                if (surplusIds.isEmpty()) {
+                    correct.add(meta);
+                } else {
+                    enough.add(meta);
+                }
+            } else if (missingIds.size() <= 3) {
+                needed.add(meta);
+            }
+        }
+
+        enough.sort(Comparator.comparingInt(m -> calculateDiffCount(m.getIngredientIds(), userSet)));
+        needed.sort(Comparator.comparingInt(m -> calculateDiffCount(m.getIngredientIds(), userSet)));
+
+        List<VideoResponseDto> result = new ArrayList<>();
+        correct.forEach(m -> result.add(VideoResponseDto.from(m.getYoutubeVideo())));
+        enough.forEach(m -> result.add(VideoResponseDto.from(m.getYoutubeVideo())));
+        needed.forEach(m -> result.add(VideoResponseDto.from(m.getYoutubeVideo())));
+
+        return result;
+    }
+
+    private int calculateDiffCount(Set<Long> videoSet, Set<Long> userSet) {
+        Set<Long> diff = new HashSet<>(videoSet);
+        diff.removeAll(userSet);
+        if (diff.isEmpty()) {
+            diff = new HashSet<>(userSet);
+            diff.removeAll(videoSet);
+        }
+        return diff.size();
+    }
+
+    private List<VideoResponseDto> extractPopularVideos(List<YoutubeVideoMeta> metas) {
+        return metas.stream()
+            .map(YoutubeVideoMeta::getYoutubeVideo)
+            .sorted((v1, v2) -> {
+                Long count1 = v1.getViewCount() != null ? v1.getViewCount() : 0L;
+                Long count2 = v2.getViewCount() != null ? v2.getViewCount() : 0L;
+                return count2.compareTo(count1); // 내림차순 정렬
+            })
+            .limit(5)
+            .map(VideoResponseDto::from)
+            .toList();
+    }
+
     public List<CulinaryRecommendationDto> getCulinaryRecommendations(List<Long> userIngredientIds) {
         Set<Long> userSet = new HashSet<>(userIngredientIds);
         List<YoutubeVideoMeta> allMetas = youtubeQueryService.findAllWithIngredients(userIngredientIds);
         Map<Long, String> ingredientNameMap = ingredientQueryService.findAll();
 
-        Map<Long, CulinaryGroup> groupByCulinary = new HashMap<>();
-
-        for (YoutubeVideoMeta meta : allMetas) {
-            Long culinaryId = meta.getCulinary().getId();
-            CulinaryGroup group = groupByCulinary.computeIfAbsent(culinaryId,
-                id -> new CulinaryGroup(meta.getCulinary().getName()));
-
-            categorizeVideo(group, meta, userSet, ingredientNameMap);
-        }
+        Map<Long, List<YoutubeVideoMeta>> groupByCulinary = allMetas.stream()
+            .collect(Collectors.groupingBy(meta -> meta.getCulinary().getId()));
 
         return groupByCulinary.values().stream()
-            .filter(CulinaryGroup::hasAnyRecipe)
-            .map(CulinaryGroup::toDto)
+            .map(metas -> createRecommendationDto(metas, userSet, ingredientNameMap))
+            .filter(Objects::nonNull)
             .toList();
     }
 
-    /**
-     * 특정 요리에 대한 상세 영상 추천
-     */
-    public CulinaryRecommendationDto getRecommendedVideos(String culinaryName, List<Long> userIngredientIds) {
-        Set<Long> userSet = new HashSet<>(userIngredientIds);
-        List<YoutubeVideoMeta> metas = youtubeQueryService.findAllByCulinaryNameWithIngredients(culinaryName);
+    private CulinaryRecommendationDto createRecommendationDto(
+        List<YoutubeVideoMeta> metas, Set<Long> userSet, Map<Long, String> nameMap) {
 
-        if (metas.isEmpty()) {
-            return new CulinaryRecommendationDto(culinaryName, List.of(), List.of(), List.of());
-        }
+        MatchResult match = findBestMatch(metas, userSet);
 
-        Map<Long, String> ingredientNameMap = prepareIngredientNameMap(metas);
-        CulinaryGroup group = new CulinaryGroup(culinaryName);
+        if (match == null) return null;
+
+        String culinaryName = metas.get(0).getCulinary().getName();
+
+        List<IngredientSimpleDto> ingredients = match.targetIngredientIds().stream()
+            .map(id -> new IngredientSimpleDto(id, nameMap.getOrDefault(id, "알 수 없는 재료")))
+            .toList();
+
+        return CulinaryRecommendationDto.builder()
+            .name(culinaryName)
+            .status(match.status())
+            .ingredients(ingredients)
+            .build();
+    }
+
+    private MatchResult findBestMatch(List<YoutubeVideoMeta> metas, Set<Long> userSet) {
+        String bestStatus = null;
+        Set<Long> bestTargetIds = Collections.emptySet();
+        int minMissingCount = Integer.MAX_VALUE;
 
         for (YoutubeVideoMeta meta : metas) {
-            categorizeVideo(group, meta, userSet, ingredientNameMap);
-        }
-
-        return group.toDto();
-    }
-
-    /**
-     * 비디오를 조건에 따라 분류하고 그룹에 추가
-     */
-    private void categorizeVideo(CulinaryGroup group, YoutubeVideoMeta meta,
-        Set<Long> userSet, Map<Long, String> nameMap) {
-        Set<Long> videoSet = meta.getIngredientIds();
-
-        // 1. 정확히 일치
-        if (userSet.equals(videoSet)) {
-            group.addExact(RecipeDetail.of(meta, Collections.emptyList(), 0));
-        }
-        // 2. 재료가 남음 (Video ⊂ User)
-        else if (userSet.containsAll(videoSet)) {
-            Set<Long> surplusIds = new HashSet<>(userSet);
-            surplusIds.removeAll(videoSet);
-            group.addSurplus(RecipeDetail.of(meta, mapNames(surplusIds, nameMap), surplusIds.size()));
-        }
-        // 3. 재료가 부족함 (상한선 3개)
-        else {
+            Set<Long> videoSet = meta.getIngredientIds();
             Set<Long> missingIds = new HashSet<>(videoSet);
             missingIds.removeAll(userSet);
-            if (missingIds.size() <= 3) {
-                group.addMissing(RecipeDetail.of(meta, mapNames(missingIds, nameMap), missingIds.size()));
+
+            if (missingIds.isEmpty()) {
+                Set<Long> surplusIds = new HashSet<>(userSet);
+                surplusIds.removeAll(videoSet);
+                if (surplusIds.isEmpty()) {
+                    return new MatchResult("correct", Collections.emptySet());
+                } else {
+                    if (!"enough".equals(bestStatus)) {
+                        bestStatus = "enough";
+                        bestTargetIds = surplusIds;
+                    }
+                }
+            } else if (missingIds.size() <= 3) {
+                if (bestStatus == null || "needed".equals(bestStatus)) {
+                    if (missingIds.size() < minMissingCount) {
+                        bestStatus = "needed";
+                        minMissingCount = missingIds.size();
+                        bestTargetIds = missingIds;
+                    }
+                }
             }
         }
+
+        if (bestStatus == null) return null;
+        return new MatchResult(bestStatus, bestTargetIds);
     }
 
-    private Map<Long, String> prepareIngredientNameMap(List<YoutubeVideoMeta> metas) {
-        Set<Long> allIngredientIds = metas.stream()
-            .flatMap(m -> m.getIngredientIds().stream())
-            .collect(Collectors.toSet());
-
-        return ingredientQueryService.findAllById(allIngredientIds).stream()
-            .collect(Collectors.toMap(Ingredient::getId, Ingredient::getName));
-    }
-
-    private List<String> mapNames(Set<Long> ids, Map<Long, String> nameMap) {
-        return ids.stream().map(nameMap::get).toList();
-    }
-
-    @Getter
-    static class CulinaryGroup {
-        private final String culinaryName;
-        private final List<RecipeDetail> exact = new ArrayList<>();
-        private final List<RecipeDetail> surplus = new ArrayList<>();
-        private final List<RecipeDetail> missing = new ArrayList<>();
-
-        public CulinaryGroup(String culinaryName) { this.culinaryName = culinaryName; }
-
-        public void addExact(RecipeDetail detail) { exact.add(detail); }
-        public void addSurplus(RecipeDetail detail) { surplus.add(detail); }
-        public void addMissing(RecipeDetail detail) { missing.add(detail); }
-
-        public boolean hasAnyRecipe() {
-            return !exact.isEmpty() || !surplus.isEmpty() || !missing.isEmpty();
-        }
-
-        public CulinaryRecommendationDto toDto() {
-            surplus.sort(Comparator.comparingInt(RecipeDetail::diffCount));
-            missing.sort(Comparator.comparingInt(RecipeDetail::diffCount));
-            return new CulinaryRecommendationDto(culinaryName, exact, surplus, missing);
-        }
-
-    }
+    record MatchResult(String status, Set<Long> targetIngredientIds) {}
 }
