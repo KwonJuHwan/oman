@@ -28,7 +28,10 @@ public enum ErrorCode {
     LOGGED_OUT_USER(HttpStatus.UNAUTHORIZED, "A002", "로그아웃된 사용자입니다. 다시 로그인해주세요."),
     STOLEN_TOKEN_DETECTED(HttpStatus.FORBIDDEN, "A003", "비정상적인 접근이 감지되어 보안을 위해 로그아웃되었습니다."),
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "A004", "존재하지 않는 사용자입니다."),
-    MISSING_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "A005", "Refresh Token이 필요합니다.");
+    MISSING_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "A005", "Refresh Token이 필요합니다."),
+
+    //Google login Error
+    INVALID_GOOGLE_TOKEN(HttpStatus.UNAUTHORIZED, "G001", "유효하지 않은 구글 ID 토큰입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
