@@ -15,12 +15,20 @@ public enum ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "C004", "요청 리소스를 찾을 수 없습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "C005", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "C006", "접근 권한이 없습니다."),
+
     // YouTube API Error
     YOUTUBE_API_GENERAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Y001", "YouTube API 호출 중 알 수 없는 오류가 발생했습니다."),
     YOUTUBE_API_QUOTA_EXCEEDED(HttpStatus.FORBIDDEN, "Y002", "YouTube API 할당량이 초과되었습니다."),
     YOUTUBE_API_INVALID_KEY(HttpStatus.UNAUTHORIZED, "Y003", "YouTube API 키가 유효하지 않습니다."),
     YOUTUBE_API_VIDEO_NOT_FOUND(HttpStatus.NOT_FOUND, "Y004", "요청하신 YouTube 동영상을 찾을 수 없습니다."),
-    YOUTUBE_API_NETWORK_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "Y005", "YouTube API 네트워크 연결에 실패했습니다.");
+    YOUTUBE_API_NETWORK_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "Y005", "YouTube API 네트워크 연결에 실패했습니다."),
+
+    // Auth & Token Error
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A001", "유효하지 않거나 만료된 토큰입니다."),
+    LOGGED_OUT_USER(HttpStatus.UNAUTHORIZED, "A002", "로그아웃된 사용자입니다. 다시 로그인해주세요."),
+    STOLEN_TOKEN_DETECTED(HttpStatus.FORBIDDEN, "A003", "비정상적인 접근이 감지되어 보안을 위해 로그아웃되었습니다."),
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "A004", "존재하지 않는 사용자입니다."),
+    MISSING_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "A005", "Refresh Token이 필요합니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
