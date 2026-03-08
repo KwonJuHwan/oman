@@ -12,10 +12,12 @@ import com.oman.domain.youtube.entity.YoutubeVideoMeta;
 import com.oman.domain.youtube.service.YoutubeCommandService;
 import com.oman.domain.youtube.service.YoutubeQueryService;
 
+import com.oman.global.error.ErrorCode;
+import com.oman.global.error.exception.RecipeException;
+import com.oman.global.error.exception.StatisticException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,9 @@ public class RecipeIntegrationService {
 
     public CulinaryIngredientGroupResponse getIngredientStatistics(String culinaryName) {
         List<CulinaryIngredientResponse> resList = statisticsQueryService.getIngredientStatistics(culinaryName);
+        if (resList == null || resList.isEmpty()) {
+            throw new StatisticException(ErrorCode.STATISTIC_NOT_FOUND);
+        }
         List<CulinaryIngredientResponse> main = new ArrayList<>();
         List<CulinaryIngredientResponse> sub = new ArrayList<>();
         List<CulinaryIngredientResponse> other = new ArrayList<>();
@@ -58,13 +63,10 @@ public class RecipeIntegrationService {
     public VideoRecommendationResponseDto getRecommendedVideos(String culinaryName, List<Long> userIngredientIds) {
         Set<Long> userSet = new HashSet<>(userIngredientIds);
         List<YoutubeVideoMeta> metas = youtubeQueryService.findAllByCulinaryNameWithIngredients(culinaryName);
-
         if (metas.isEmpty()) {
             return new VideoRecommendationResponseDto(Collections.emptyList(), Collections.emptyList());
         }
-
         List<VideoResponseDto> matchVideos = extractMatchVideos(metas, userSet);
-
         List<VideoResponseDto> popularVideos = extractPopularVideos(metas);
 
         return new VideoRecommendationResponseDto(matchVideos, popularVideos);
@@ -130,6 +132,10 @@ public class RecipeIntegrationService {
     public List<CulinaryRecommendationDto> getCulinaryRecommendations(List<Long> userIngredientIds) {
         Set<Long> userSet = new HashSet<>(userIngredientIds);
         List<YoutubeVideoMeta> allMetas = youtubeQueryService.findAllWithIngredients(userIngredientIds);
+        if (allMetas.isEmpty()) {
+            throw new RecipeException(ErrorCode.RECIPE_VIDEO_NOT_FOUND);
+        }
+
         Map<Long, String> ingredientNameMap = ingredientQueryService.findAll();
 
         Map<Long, List<YoutubeVideoMeta>> groupByCulinary = allMetas.stream()
@@ -143,13 +149,10 @@ public class RecipeIntegrationService {
 
     private CulinaryRecommendationDto createRecommendationDto(
         List<YoutubeVideoMeta> metas, Set<Long> userSet, Map<Long, String> nameMap) {
-
         MatchResult match = findBestMatch(metas, userSet);
-
         if (match == null) return null;
 
         String culinaryName = metas.get(0).getCulinary().getName();
-
         List<IngredientSimpleDto> ingredients = match.targetIngredientIds().stream()
             .map(id -> new IngredientSimpleDto(id, nameMap.getOrDefault(id, "알 수 없는 재료")))
             .toList();
@@ -182,14 +185,14 @@ public class RecipeIntegrationService {
                         bestTargetIds = surplusIds;
                     }
                 }
-            } else if (missingIds.size() <= 3) {
-                if (bestStatus == null || "needed".equals(bestStatus)) {
-                    if (missingIds.size() < minMissingCount) {
+            } else if (missingIds.size() <= 3
+                && (bestStatus == null || "needed".equals(bestStatus)
+                && (missingIds.size() < minMissingCount))) {
                         bestStatus = "needed";
                         minMissingCount = missingIds.size();
                         bestTargetIds = missingIds;
-                    }
-                }
+
+
             }
         }
 
