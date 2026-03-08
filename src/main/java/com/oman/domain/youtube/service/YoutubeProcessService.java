@@ -48,14 +48,11 @@ public class YoutubeProcessService {
     @Value("${app.file.storage-dir}")
     private String fileStorageDir;
 
-    /**
-     * 전체 프로세스 메인 메서드
-     */
     public String processAndSaveRecipeVideos(String recipeName, boolean forceReInference) {
         // YouTube Search API 호출
         List<SearchResult> searchResults = youtubeApiClient.searchVideos(recipeName);
         if (searchResults.isEmpty()) {
-            log.warn("No YouTube videos found for recipe: {}", recipeName);
+            log.warn("[YouTube Batch] '{}' 요리에 대한 유튜브 검색 결과가 없습니다.", recipeName);
             return "fail";
         }
 
@@ -77,6 +74,7 @@ public class YoutubeProcessService {
 
         // 3. 1차 DB 저장 및 업데이트
         List<YoutubeVideo> savedVideos = youtubeCommandService.saveOrUpdateYoutubeData(recipeName, searchResults, videoMap, channelMap);
+        log.info("[YouTube Batch] DB 기본 정보(비디오/채널) 병합 완료: {} 건", savedVideos.size());
 
         // 모델 추론이 필요한 비디오 선별
         List<YoutubeVideo> videosForInference = savedVideos.stream()
@@ -84,7 +82,7 @@ public class YoutubeProcessService {
             .toList();
 
         if (videosForInference.isEmpty()) {
-            log.info("All videos already have ingredient data. Skipping inference.");
+            log.info("[YouTube Batch] 모든 영상에 이미 재료 데이터가 존재합니다. 추론 프로세스를 스킵합니다.");
             return "success (skipped inference)";
         }
 
@@ -100,18 +98,21 @@ public class YoutubeProcessService {
             .videoDescriptions(videoDescriptions)
             .build();
 
-        log.info("Calling FastAPI for inference: {}", recipeName);
         fastApiClient.callInferenceApi(fastApiRequestDto)
             .toFuture()
             .thenAccept(result -> {
                 if (result != null && result.getResults() != null) {
                     // 이 블록은 응답이 도착했을 때 별도 스레드에서 실행
                     youtubeCommandService.saveInferenceResults(savedVideos, result.getResults(), forceReInference);
-                    log.info("Inference results saved for: {}", recipeName);
+                    log.info("[YouTube Batch Async] '{}' 추론 결과 수신 및 DB 매핑 완료 (처리 건수: {})",
+                        recipeName, result.getResults().size());
+                }
+                else {
+                    log.warn("[YouTube Batch Async] FastAPI 서버에서 빈 응답이 반환되었습니다.");
                 }
             })
             .exceptionally(ex -> {
-                log.error("Async inference failed: {}", ex.getMessage());
+                log.error("[YouTube Batch Async] FastAPI 추론 통신 실패 - 요리명: {}", recipeName, ex);
                 return null;
             });
 
@@ -130,7 +131,7 @@ public class YoutubeProcessService {
         List<SearchResult> searchResults = youtubeApiClient.searchVideos(query);
 
         if (searchResults.isEmpty()) {
-            System.out.println("경고: '" + query + "' 쿼리에 해당하는 비디오를 찾을 수 없어 파일을 저장하지 않습니다.");
+            log.warn("[Labeling Data] '{}' 쿼리에 해당하는 비디오를 찾을 수 없습니다.", query);
             return null;
         }
 
@@ -154,7 +155,7 @@ public class YoutubeProcessService {
         }
 
         if (videoDescriptionsForFile.isEmpty()) {
-            System.out.println("경고: 추출된 description이 없어 파일을 저장하지 않습니다.");
+            log.warn("[Labeling Data] 추출된 Description 데이터가 없습니다.");
             return null;
         }
 
@@ -192,12 +193,11 @@ public class YoutubeProcessService {
             Path filePath = storagePath.resolve(fileName);
 
             Files.writeString(filePath, textContentBuilder.toString());
-            System.out.println("동영상 description .txt 파일 저장 완료: " + filePath.toAbsolutePath());
+            log.info("[Labeling Data] 텍스트 파일 저장 완료: {}", filePath.toAbsolutePath());
             return filePath;
 
         } catch (IOException e) {
-            System.err.println("동영상 description .txt 파일 저장 중 오류 발생: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[Labeling Data] 파일 저장 중 오류 발생 - 쿼리: {}", query, e);
             return null;
         }
     }

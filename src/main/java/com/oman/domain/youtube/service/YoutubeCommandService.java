@@ -105,7 +105,7 @@ public class YoutubeCommandService {
         Map<String, YoutubeVideo> videoMap = savedVideos.stream()
             .collect(Collectors.toMap(YoutubeVideo::getApiVideoId, v -> v));
 
-        // 1. 모든 추출된 재료 이름 모으기 (Bulk 조회를 위해)
+        // 모든 추출된 재료 이름 모으기
         Set<String> allFilteredNames = new HashSet<>();
         results.values().forEach(res ->
             res.getExtractedIngredients().forEach(ext -> {
@@ -113,10 +113,10 @@ public class YoutubeCommandService {
                 if (!filtered.isEmpty()) allFilteredNames.add(filtered);
             })
         );
-        // 2. 마스터 재료(Ingredient) 테이블 한 번에 조회 및 신규 생성
+        // 재료 테이블 한 번에 조회 및 신규 생성
         Map<String, Ingredient> ingredientMasterMap = prepareIngredientMaster(allFilteredNames);
 
-        // 3. 필터링 및 엔티티 생성
+        // 필터링 및 엔티티 생성
         List<YoutubeIngredient> allToSave = new ArrayList<>();
         results.forEach((videoId, result) -> {
             YoutubeVideo video = videoMap.get(videoId);
@@ -131,7 +131,7 @@ public class YoutubeCommandService {
             }
         });
 
-        // 4. 최종 Bulk Save
+        // 최종 Bulk Save
         youtubeIngredientRepository.saveAll(allToSave);
         createVideoMetas(savedVideos, allToSave, forceReInference);
     }
@@ -151,6 +151,7 @@ public class YoutubeCommandService {
         if (!toCreate.isEmpty()) {
             List<Ingredient> newlySaved = ingredientRepository.saveAll(toCreate);
             newlySaved.forEach(i -> masterMap.put(i.getName(), i));
+            log.info("[Inference Save] DB에 없던 새로운 재료 등록 됨: {}건", newlySaved.size());
         }
 
         return masterMap;
@@ -251,36 +252,21 @@ public class YoutubeCommandService {
 
     private void cleanupVideoIngredientsAndMeta(List<YoutubeVideo> videos) {
         List<Long> videoIds = videos.stream().map(YoutubeVideo::getId).toList();
-
-        // 1. 해당 비디오들의 재료 데이터 삭제
         youtubeIngredientRepository.deleteByYoutubeVideoIdIn(videoIds);
-
-        // 2. 해당 비디오들의 메타데이터 삭제
         youtubeVideoMetaRepository.deleteByYoutubeVideoIdIn(videoIds);
-
-        // JPA 1차 캐시/영속성 컨텍스트 초기화
         videos.forEach(v -> v.getVideoIngredients().clear());
     }
 
     @Transactional(readOnly = true)
     public List<Long> getRandomVideoIngredientIds(String culinaryName) {
-        // 1. 해당 요리에 연결된 모든 비디오 조회 (재료 포함)
         List<YoutubeVideo> videos = youtubeVideoRepository.findAllByCulinaryName(culinaryName);
-
         if (videos.isEmpty()) {
             return Collections.emptyList();
         }
-
-        // 2. 비디오 리스트를 무작위로 섞음
         List<YoutubeVideo> shuffledVideos = new ArrayList<>(videos);
         Collections.shuffle(shuffledVideos);
-
-        // 3. 첫 번째 비디오를 선택
         YoutubeVideo randomVideo = shuffledVideos.get(0);
-
         log.info("무작위 선택된 비디오: [{}] {}", randomVideo.getApiVideoId(), randomVideo.getTitle());
-
-        // 4. 해당 비디오의 재료 ID들만 추출
         List<Long> ingredientIds = randomVideo.getVideoIngredients().stream()
             .map(vi -> vi.getIngredient().getId())
             .distinct()
