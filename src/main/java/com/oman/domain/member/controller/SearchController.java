@@ -24,13 +24,7 @@ public class SearchController {
         @RequestParam SearchType type) {
 
         String email = principal.getName();
-        List<IngredientSimpleDto> response;
-
-        if (type == SearchType.INGREDIENT) {
-            response = searchHistoryService.getRecentIngredientSearches(email);
-        } else {
-            response = searchHistoryService.getRecentRecipeSearches(email);
-        }
+        List<IngredientSimpleDto> response = searchHistoryService.getRecentSearches(email, type);
 
         return ResponseEntity.ok(response);
     }

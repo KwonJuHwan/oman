@@ -34,7 +34,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .exceptionHandling(exception -> exception
-                .authenticationEntryPoint(jwtAuthenticationEntryPoint) // 여기 등록!
+                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
