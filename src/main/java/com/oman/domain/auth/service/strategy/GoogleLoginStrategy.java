@@ -8,10 +8,12 @@ import com.oman.domain.auth.dto.OAuth2UserInfo;
 import com.oman.domain.member.entity.SocialProvider;
 import com.oman.global.error.ErrorCode;
 import com.oman.global.error.exception.AuthException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import java.util.Collections;
 
+@Slf4j
 @Component
 public class GoogleLoginStrategy implements SocialLoginStrategy {
 
@@ -42,10 +44,14 @@ public class GoogleLoginStrategy implements SocialLoginStrategy {
                     .profileImageUrl((String) payload.get("picture"))
                     .build();
             } else {
+                log.warn("구글 로그인 실패: 유효하지 않은 ID 토큰 전달됨");
                 throw new AuthException(ErrorCode.INVALID_GOOGLE_TOKEN);
             }
+        } catch (AuthException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("구글 로그인 토큰 검증 중 오류 발생", e);
+            log.error("[Google Login Error] 구글 토큰 검증 중 네트워크 또는 파싱 오류 발생", e);
+            throw new AuthException(ErrorCode.GOOGLE_LOGIN_VERIFICATION_FAILED, e);
         }
     }
 }

@@ -44,9 +44,9 @@ public class DailyIngredientStatisticBatchConfig {
             .reader(culinaryItemReader.reader())
             .processor(processor)
             .writer(writer)
-            .faultTolerant() // 결함 허용 설정 활성화
-            .skip(EntityNotFoundException.class) // 특정 예외 시 스킵
-            .skipLimit(10) // 최대 10개까지 허용
+            .faultTolerant()
+            .skip(EntityNotFoundException.class)
+            .skipLimit(10)
             .retry()
             .retryLimit(3)
             .transactionManager(transactionManager)
