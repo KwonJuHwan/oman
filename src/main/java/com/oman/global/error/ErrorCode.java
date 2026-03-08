@@ -23,6 +23,10 @@ public enum ErrorCode {
     YOUTUBE_API_VIDEO_NOT_FOUND(HttpStatus.NOT_FOUND, "Y004", "요청하신 YouTube 동영상을 찾을 수 없습니다."),
     YOUTUBE_API_NETWORK_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "Y005", "YouTube API 네트워크 연결에 실패했습니다."),
 
+    // Redis Error
+    REDIS_SERIALIZATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R001", "Redis 데이터 직렬화/역직렬화에 실패했습니다."),
+    REDIS_OPERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R002", "Redis 작업 수행 중 오류가 발생했습니다."),
+
     // Auth & Token Error
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A001", "유효하지 않거나 만료된 토큰입니다."),
     LOGGED_OUT_USER(HttpStatus.UNAUTHORIZED, "A002", "로그아웃된 사용자입니다. 다시 로그인해주세요."),
