@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+      <charset>utf8</charset>
+    </encoder>
+  </appender>
+
+  <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+    <destination>localhost:5000</destination>
+
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <customFields>{"app_name":"oman-api"}</customFields>
+    </encoder>
+  </appender>
+  <root level="INFO">
+    <appender-ref ref="CONSOLE" />
+    <appender-ref ref="LOGSTASH" />
+  </root>
+
+  <logger name="com.oman.domain.*.controller" level="INFO" />
+
+  <logger name="com.oman.domain.*.service" level="DEBUG" />
+
+  <logger name="com.oman.domain.*.repository" level="DEBUG" />
+
+  <logger name="org.hibernate.SQL" level="DEBUG" />
+  <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" />
+</configuration>
