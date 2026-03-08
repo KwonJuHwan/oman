@@ -1,4 +1,4 @@
-package com.oman.domain.youtube.repository;
+package com.oman.domain.youtube.repository.custom;
 
 import com.oman.domain.youtube.entity.YoutubeVideoMeta;
 import java.util.List;

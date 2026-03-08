@@ -1,4 +1,4 @@
-package com.oman.domain.youtube.repository;
+package com.oman.domain.youtube.repository.custom;
 
 
 import com.oman.domain.statistic.dto.IngredientCountDto;

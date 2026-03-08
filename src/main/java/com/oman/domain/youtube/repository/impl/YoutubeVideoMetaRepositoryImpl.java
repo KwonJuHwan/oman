@@ -1,16 +1,17 @@
-package com.oman.domain.youtube.repository;
+package com.oman.domain.youtube.repository.impl;
 
 import static com.oman.domain.culinary.entity.QCulinary.culinary;
 import static com.oman.domain.youtube.entity.QYoutubeVideo.youtubeVideo;
 import static com.oman.domain.youtube.entity.QYoutubeVideoMeta.youtubeVideoMeta;
 
 import com.oman.domain.youtube.entity.YoutubeVideoMeta;
+import com.oman.domain.youtube.repository.custom.YoutubeVideoMetaRepositoryCustom;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class YoutubeVideoMetaRepositoryImpl implements YoutubeVideoMetaRepositoryCustom{
+public class YoutubeVideoMetaRepositoryImpl implements YoutubeVideoMetaRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 

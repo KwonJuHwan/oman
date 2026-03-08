@@ -1,7 +1,8 @@
-package com.oman.domain.youtube.repository;
+package com.oman.domain.youtube.repository.impl;
 
 
 import com.oman.domain.statistic.dto.IngredientCountDto;
+import com.oman.domain.youtube.repository.custom.YoutubeIngredientRepositoryCustom;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.List;
@@ -10,7 +11,7 @@ import static com.oman.domain.youtube.entity.QYoutubeVideo.youtubeVideo;
 import static com.oman.domain.youtube.entity.QYoutubeIngredient.youtubeIngredient;
 
 @RequiredArgsConstructor
-public class YoutubeIngredientRepositoryImpl implements YoutubeIngredientRepositoryCustom{
+public class YoutubeIngredientRepositoryImpl implements YoutubeIngredientRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
     @Override

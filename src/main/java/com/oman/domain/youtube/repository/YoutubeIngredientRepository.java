@@ -3,13 +3,15 @@ package com.oman.domain.youtube.repository;
 
 import com.oman.domain.youtube.entity.YoutubeIngredient;
 import com.oman.domain.youtube.entity.YoutubeVideo;
+import com.oman.domain.youtube.repository.custom.YoutubeIngredientRepositoryCustom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface YoutubeIngredientRepository extends JpaRepository<YoutubeIngredient, Long>,YoutubeIngredientRepositoryCustom {
+public interface YoutubeIngredientRepository extends JpaRepository<YoutubeIngredient, Long>,
+    YoutubeIngredientRepositoryCustom {
     List<YoutubeIngredient> findByYoutubeVideo(YoutubeVideo youtubeVideo);
 
     void deleteByYoutubeVideoIdIn(List<Long> videoIds);
