@@ -12,12 +12,13 @@ import com.oman.domain.member.repository.MemberRepository;
 import com.oman.global.error.ErrorCode;
 import com.oman.global.error.exception.AuthException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -36,6 +37,9 @@ public class AuthService {
         Member member = memberRepository.findByProviderAndProviderId(userInfo.getProvider(), userInfo.getProviderId())
             .orElseGet(() -> registerNewMember(userInfo));
 
+        log.info("로그인 성공 - 이메일: [{}], 제공자: [{}]",
+            member.getEmail(), provider.name());
+
         String accessToken = jwtTokenProvider.createAccessToken(member.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(member.getEmail());
 
@@ -50,6 +54,7 @@ public class AuthService {
                 .build());
         refreshTokenRepository.save(savedRefreshToken);
 
+        log.debug("토큰 발급 완료 - 이메일: [{}]", member.getEmail());
         return AuthResponse.builder()
             .accessToken(accessToken)
             .refreshToken(refreshToken)
@@ -81,7 +86,7 @@ public class AuthService {
         String newRefreshToken = jwtTokenProvider.createRefreshToken(email);
 
         storedToken.updateToken(newRefreshToken);
-
+        log.info("토큰 갱신 완료 - 이메일: [{}]", email);
         return AuthResponse.builder()
             .accessToken(newAccessToken)
             .refreshToken(newRefreshToken)
@@ -90,6 +95,7 @@ public class AuthService {
     }
 
     private Member registerNewMember(OAuth2UserInfo userInfo) {
+        log.info("신규 사용자 가입 진행 - 이메일: [{}]", userInfo.getEmail());
         Member newMember = Member.builder()
             .email(userInfo.getEmail())
             .name(userInfo.getName())
