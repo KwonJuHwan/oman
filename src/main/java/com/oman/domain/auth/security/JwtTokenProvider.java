@@ -2,15 +2,19 @@ package com.oman.domain.auth.security;
 
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
 
+@Slf4j
 @Component
 public class JwtTokenProvider {
 
@@ -57,8 +61,13 @@ public class JwtTokenProvider {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             return true;
+        } catch (MalformedJwtException e) {
+            log.warn("잘못된 JWT 서명입니다.");
+        } catch (ExpiredJwtException e) {
+            log.debug("만료된 JWT 토큰입니다.");
         } catch (Exception e) {
-            return false;
+            log.warn("지원되지 않거나 유효하지 않은 JWT 토큰입니다.", e);
         }
+        return false;
     }
 }
