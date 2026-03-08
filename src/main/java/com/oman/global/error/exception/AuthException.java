@@ -8,7 +8,7 @@ public class AuthException extends ApplicationException {
         super(errorCode);
     }
 
-    protected AuthException(ErrorCode errorCode, Throwable cause) {
+    public AuthException(ErrorCode errorCode, Throwable cause) {
         super(errorCode, cause);
     }
 }
