@@ -2,6 +2,8 @@ package com.oman.domain.culinary.service;
 
 import com.oman.domain.culinary.entity.Ingredient;
 import com.oman.domain.culinary.repository.IngredientRepository;
+import com.oman.global.error.ErrorCode;
+import com.oman.global.error.exception.CulinaryException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,8 +17,9 @@ import org.springframework.stereotype.Service;
 public class IngredientQueryService {
     private final IngredientRepository ingredientRepository;
 
-    public Optional<Ingredient> findIngredientById(Long id) {
-        return ingredientRepository.findById(id);
+    public Ingredient findIngredientById(Long id) {
+        return ingredientRepository.findById(id)
+            .orElseThrow(() -> new CulinaryException(ErrorCode.INGREDIENT_NOT_FOUND));
     }
 
     public Map<Long,String> findAll(){
@@ -26,6 +29,10 @@ public class IngredientQueryService {
 
 
     public List<Ingredient> findAllById(Set<Long> ingredientId){
-        return ingredientRepository.findAllByIdIn(ingredientId);
+        List<Ingredient> ingredients = ingredientRepository.findAllByIdIn(ingredientId);
+        if (ingredients.size() != ingredientId.size()) {
+            throw new CulinaryException(ErrorCode.INGREDIENT_NOT_FOUND);
+        }
+        return ingredients;
     }
 }
