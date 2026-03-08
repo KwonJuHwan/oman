@@ -19,8 +19,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleApplicationException(ApplicationException ex, WebRequest request) {
         final ErrorCode errorCode = ex.getErrorCode();
 
-        log.warn("ApplicationException [{}], Path: {}",
-            ex.getMessage(), request.getDescription(false), ex);
+        log.warn("[Business Exception] {}: {}", errorCode.getCode(), errorCode.getMessage());
 
         final ErrorResponse response = ErrorResponse.of(errorCode);
         return new ResponseEntity<>(response, errorCode.getHttpStatus());
