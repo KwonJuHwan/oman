@@ -9,10 +9,10 @@ import com.oman.domain.statistic.entity.IngredientStatistic;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.batch.core.job.Job;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,16 +40,15 @@ public class DailyIngredientStatisticBatchConfig {
     @Bean
     public Step statisticsStep() {
         return new StepBuilder("statisticsStep", jobRepository)
-            .<Culinary, List<IngredientStatistic>>chunk(10)
+            .<Culinary, List<IngredientStatistic>>chunk(10, transactionManager)
             .reader(culinaryItemReader.reader())
             .processor(processor)
             .writer(writer)
             .faultTolerant()
             .skip(EntityNotFoundException.class)
             .skipLimit(10)
-            .retry()
+            .retry(Exception.class)
             .retryLimit(3)
-            .transactionManager(transactionManager)
             .build();
     }
 }

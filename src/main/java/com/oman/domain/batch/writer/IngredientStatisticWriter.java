@@ -4,8 +4,8 @@ import com.oman.domain.statistic.entity.IngredientStatistic;
 import com.oman.domain.statistic.service.IngredientStatisticCommandService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.batch.infrastructure.item.Chunk;
-import org.springframework.batch.infrastructure.item.ItemWriter;
+import org.springframework.batch.item.Chunk;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.stereotype.Component;
 
 @Component

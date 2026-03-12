@@ -5,9 +5,8 @@ import com.oman.domain.statistic.entity.IngredientStatistic;
 import com.oman.domain.statistic.service.IngredientStatisticProcessService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.batch.infrastructure.item.ItemProcessor;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.stereotype.Component;
-
 
 @Component
 @RequiredArgsConstructor
